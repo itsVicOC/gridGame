@@ -1,6 +1,6 @@
 import type { MoveLog, Point, PuzzleDefinition } from "@pathweave/game";
 
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
+const API_URL = import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? "http://localhost:3001" : `${window.location.origin}/api`);
 const TOKEN_KEY = "pathweave-access-token";
 export const CLIENT_VERSION = "1.1.0";
 
