@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { DataType, newDb } from "pg-mem";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { solvePuzzle, type PuzzleDefinition } from "@pathweave/game";
+import { findShortestSolution, type PuzzleDefinition } from "@pathweave/game";
 import { replacePoolForTests } from "./db";
 import { buildApp } from "./server";
 
@@ -52,7 +52,7 @@ describe("API 完整成绩链路", () => {
     expect(started.statusCode).toBe(200);
     const attempt = started.json();
     await testPool.query("UPDATE attempts SET started_at = now() - interval '5 seconds' WHERE id=$1", [attempt.attemptId]);
-    const solution = solvePuzzle(puzzle, 1)[0]!;
+    const solution = findShortestSolution(puzzle)!;
     const operationLog = solution.moves.map((target, index) => ({ type: "move", target, elapsedMs: 800 + index * 60 }));
     const payload = { attemptToken: attempt.attemptToken, idempotencyKey: randomUUID(), moves: solution.moves, operationLog };
     const first = await app.inject({ method: "POST", url: `/v1/attempts/${attempt.attemptId}/submit`, headers: authorization, payload });

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { applyMove, createInitialState, evaluateRun, replayMoves, undoMove } from "./engine";
+import { applyMove, countSteps, createInitialState, evaluateRun, replayMoves, undoMove } from "./engine";
 import { challengeCompletionCount, difficultyForDate, fallbackPuzzle, generateDailyPuzzle } from "./generator";
 import { practicePuzzles } from "./practice";
-import { solvePuzzle, validatePuzzle } from "./solver";
+import { findShortestSolution, findShortestSolutions, solvePuzzle, validatePuzzle } from "./solver";
 
 describe("规则引擎", () => {
   it("拒绝斜向、阻挡和重复移动", () => {
@@ -14,10 +14,7 @@ describe("规则引擎", () => {
 
   it("完成路径并由服务端规则计算星数", () => {
     const puzzle = fallbackPuzzle("2026-07-15");
-    const state = replayMoves(puzzle, [
-      { row: 3, col: 1 }, { row: 2, col: 1 }, { row: 1, col: 1 },
-      { row: 0, col: 1 }, { row: 0, col: 2 }, { row: 0, col: 3 },
-    ]);
+    const state = replayMoves(puzzle, findShortestSolution(puzzle)!.moves);
     expect(state.status).toBe("complete");
     expect(evaluateRun(puzzle, state, 20_000).stars).toBe(3);
   });
@@ -26,11 +23,20 @@ describe("规则引擎", () => {
     expect(generateDailyPuzzle("2026-07-15")).toEqual(generateDailyPuzzle("2026-07-15"));
   });
 
+  it("备用题保留多解且最短解唯一", () => {
+    const puzzle = fallbackPuzzle("2026-06-14");
+    const validation = validatePuzzle(puzzle);
+    expect(validation.valid).toBe(true);
+    expect(validation.solutionCount).toBeGreaterThan(1);
+    expect(validation.optimalCount).toBe(1);
+    expect(validation.optimalSteps).toBe(puzzle.optimalSteps);
+  });
+
   it("全部练习关都有合法解", () => {
     for (const puzzle of practicePuzzles) {
-      const solutions = solvePuzzle(puzzle, 1);
-      expect(solutions, puzzle.id).not.toHaveLength(0);
-      expect(solutions[0]?.steps, `${puzzle.id} optimal`).toBe(puzzle.optimalSteps);
+      const shortest = findShortestSolution(puzzle);
+      expect(shortest, puzzle.id).toBeDefined();
+      expect(shortest?.steps, `${puzzle.id} optimal`).toBe(puzzle.optimalSteps);
     }
   });
 
@@ -54,6 +60,18 @@ describe("规则引擎", () => {
     }
   });
 
+  it("全年每日题与备用题都通过发布校验", () => {
+    const start = new Date("2026-01-01T12:00:00Z");
+    for (let index = 0; index < 365; index++) {
+      const date = new Date(start.getTime() + index * 86_400_000).toISOString().slice(0, 10);
+      const puzzle = generateDailyPuzzle(date);
+      const validation = validatePuzzle(puzzle);
+      expect(validation.valid, puzzle.id).toBe(true);
+      expect(validation.optimalSteps, puzzle.id).toBe(puzzle.optimalSteps);
+      expect(challengeCompletionCount(puzzle), `${puzzle.id} challenge`).toBeGreaterThan(0);
+    }
+  });
+
   it("高难度每日题包含传送机制", () => {
     const sundays = ["2026-08-02", "2026-08-09", "2026-08-16", "2026-08-23"];
     expect(sundays.some((date) => Object.values(generateDailyPuzzle(date).rules).some((rule) => rule.type === "portal"))).toBe(true);
@@ -69,5 +87,42 @@ describe("规则引擎", () => {
     state = undoMove(puzzle, state);
     state = undoMove(puzzle, state);
     expect(state.undoCount).toBe(2);
+  });
+
+  it("最短搜索不把 DFS 第一条较长路径当作最优", () => {
+    const puzzle = practicePuzzles[1]!;
+    const firstDepthFirst = solvePuzzle(puzzle, 1)[0]!;
+    const shortest = findShortestSolution(puzzle)!;
+    expect(firstDepthFirst.steps).toBeGreaterThan(shortest.steps);
+    expect(shortest.steps).toBe(6);
+    expect(puzzle.optimalSteps).toBe(6);
+  });
+
+  it("精确统计最短解数量", () => {
+    const puzzle = practicePuzzles[0]!;
+    const shortest = findShortestSolutions(puzzle);
+    expect(shortest.length).toBeGreaterThan(1);
+    expect(new Set(shortest.map((solution) => solution.steps))).toEqual(new Set([puzzle.optimalSteps]));
+  });
+
+  it("传送门占用两格但只计算一次主动移动", () => {
+    const puzzle = practicePuzzles[6]!;
+    const shortest = findShortestSolution(puzzle)!;
+    const state = replayMoves(puzzle, shortest.moves);
+    expect(state.path.length - 1).toBeGreaterThan(state.steps);
+    expect(state.steps).toBe(state.moves.length);
+    expect(countSteps(state.moves)).toBe(puzzle.optimalSteps);
+  });
+
+  it("提前进入终点遗漏必经格后不可继续但可以撤回", () => {
+    const puzzle = fallbackPuzzle("2026-07-15");
+    const state = replayMoves(puzzle, [
+      { row: 3, col: 1 }, { row: 3, col: 2 }, { row: 3, col: 3 },
+      { row: 2, col: 3 }, { row: 1, col: 3 }, { row: 0, col: 3 },
+    ]);
+    expect(state.status).toBe("invalid");
+    expect(state.error).toBe("还有必经格没有连接");
+    expect(applyMove(puzzle, state, { row: 0, col: 2 }).moves).toEqual(state.moves);
+    expect(undoMove(puzzle, state).path.at(-1)).toEqual({ row: 1, col: 3 });
   });
 });

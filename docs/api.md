@@ -69,7 +69,7 @@
   "serverTime": "2026-07-14T16:00:01.000Z",
   "minClientVersion": "1.1.0",
   "puzzle": {
-    "id": "daily-2026-07-15-v2.0.0",
+    "id": "daily-2026-07-15-v2.1.0",
     "date": "2026-07-15",
     "title": "午后折线",
     "width": 5,
@@ -82,7 +82,7 @@
     "challenge": { "type": "no-undo", "label": "一笔笃定：不撤销完成" },
     "optimalSteps": 8,
     "difficulty": 3,
-    "generatorVersion": "2.0.0",
+    "generatorVersion": "2.1.0",
     "rulesVersion": "1.1.0"
   }
 }

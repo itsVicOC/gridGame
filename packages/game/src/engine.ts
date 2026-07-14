@@ -2,6 +2,7 @@ import type { Direction, GameState, Point, PuzzleDefinition, RunEvaluation } fro
 
 export const pointKey = (point: Point) => `${point.row},${point.col}`;
 export const samePoint = (a: Point, b: Point) => a.row === b.row && a.col === b.col;
+export const countSteps = (moves: readonly Point[]) => moves.length;
 
 export const directionBetween = (from: Point, to: Point): Direction | null => {
   const row = to.row - from.row;
@@ -65,7 +66,7 @@ export function applyMove(
   }
   const visited = new Set(state.path.map(pointKey));
   if (visited.has(pointKey(target))) return { ...state, error: "路径不能重复" };
-  const nextSteps = state.steps + 1;
+  const nextSteps = countSteps(state.moves) + 1;
   const targetRule = puzzle.rules[pointKey(target)];
   if (targetRule?.type === "gate" && nextSteps > targetRule.maxStep) {
     return { ...state, error: `必须在第 ${targetRule.maxStep} 步前经过` };
@@ -80,11 +81,12 @@ export function applyMove(
   const path = [...state.path, ...appended];
   const completed = samePoint(path.at(-1)!, puzzle.end);
   const requiredMet = puzzle.required.every((key) => path.some((point) => pointKey(point) === key));
+  const moves = [...state.moves, target];
   return {
     ...state,
     path,
-    moves: [...state.moves, target],
-    steps: nextSteps,
+    moves,
+    steps: countSteps(moves),
     status: completed && requiredMet ? "complete" : completed ? "invalid" : "playing",
     error: completed && !requiredMet ? "还有必经格没有连接" : undefined,
   };
@@ -121,13 +123,14 @@ export function evaluateRun(
       }
     }
   }
-  const optimal = completed && state.steps === puzzle.optimalSteps;
+  const steps = countSteps(state.moves);
+  const optimal = completed && steps === puzzle.optimalSteps;
   return {
     valid: completed,
     completed,
     stars: Number(completed) + Number(optimal) + Number(challenge),
     starDetails: { completion: completed, optimal, challenge },
-    steps: state.steps,
+    steps,
     error: state.error,
   };
 }

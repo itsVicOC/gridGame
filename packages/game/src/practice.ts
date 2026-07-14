@@ -1,4 +1,4 @@
-import { solvePuzzle } from "./solver";
+import { findShortestSolution } from "./solver";
 import type { PuzzleDefinition } from "./types";
 
 type Draft = Omit<PuzzleDefinition, "optimalSteps" | "generatorVersion" | "rulesVersion">;
@@ -69,7 +69,7 @@ const drafts: Draft[] = [
 
 export const practicePuzzles: PuzzleDefinition[] = drafts.map((draft) => {
   const puzzle: PuzzleDefinition = { ...defaults, ...draft, optimalSteps: 0 };
-  const optimal = solvePuzzle(puzzle, 1)[0]?.steps;
+  const optimal = findShortestSolution(puzzle)?.steps;
   if (optimal === undefined) throw new Error(`Practice puzzle ${puzzle.id} has no solution`);
   return { ...puzzle, optimalSteps: optimal };
 });

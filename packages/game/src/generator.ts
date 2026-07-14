@@ -1,8 +1,8 @@
 import { directionBetween, pointKey } from "./engine";
-import { solvePuzzle, validatePuzzle } from "./solver";
+import { findShortestSolution, solvePuzzle, validatePuzzle } from "./solver";
 import type { CellRule, Challenge, Point, PuzzleDefinition, SolutionSummary } from "./types";
 
-export const GENERATOR_VERSION = "2.0.0";
+export const GENERATOR_VERSION = "2.1.0";
 export const RULES_VERSION = "1.1.0";
 
 function hashSeed(value: string) {
@@ -96,7 +96,7 @@ function ruleCandidates(solution: SolutionSummary, difficulty: number): Array<[s
 
 function addStableRules(puzzle: PuzzleDefinition, difficulty: number) {
   let current = puzzle;
-  const solution = solvePuzzle(current, 1)[0];
+  const solution = findShortestSolution(current);
   if (!solution) return current;
   for (const [key, rule] of ruleCandidates(solution, difficulty)) {
     if (current.rules[key]) continue;
@@ -105,7 +105,7 @@ function addStableRules(puzzle: PuzzleDefinition, difficulty: number) {
     if (validation.valid) current = { ...candidate, optimalSteps: validation.optimalSteps! };
   }
   if (difficulty >= 5) {
-    const refreshed = solvePuzzle(current, 1)[0];
+    const refreshed = findShortestSolution(current);
     if (refreshed && refreshed.path.length >= 7) {
       const entrance = pointKey(refreshed.path[3]!);
       const exit = pointKey(refreshed.path[4]!);
@@ -181,8 +181,12 @@ export function fallbackPuzzle(date: string, difficulty: 1 | 2 | 3 | 4 | 5 = 1):
   return {
     id: `daily-${date}-fallback`, date, title: "今日小径", width: 4, height: 4,
     start: { row: 3, col: 0 }, end: { row: 0, col: 3 }, blocked: ["0,0", "1,0", "2,2"],
-    required: ["0,2"], rules: { "0,1": { type: "turn" }, "1,2": { type: "stamp", stampId: "daily" } },
-    challenge: { type: "no-undo", label: "一笔笃定：不撤销完成" }, optimalSteps: 6, difficulty,
+    required: ["0,2"], rules: {
+      "0,1": { type: "turn" },
+      "1,2": { type: "stamp", stampId: "daily" },
+      "2,1": { type: "arrow", direction: "right" },
+    },
+    challenge: { type: "no-undo", label: "一笔笃定：不撤销完成" }, optimalSteps: 8, difficulty,
     generatorVersion: GENERATOR_VERSION, rulesVersion: RULES_VERSION,
   };
 }
