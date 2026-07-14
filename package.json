@@ -1,0 +1,16 @@
+{
+  "name": "daily-path-puzzle",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "npm run dev -w @pathweave/web",
+    "dev:api": "npm run dev -w @pathweave/api",
+    "build": "npm run build -w @pathweave/game && npm run build -w @pathweave/api && npm run build -w @pathweave/web",
+    "test": "npm run test -w @pathweave/game && npm run test -w @pathweave/api && npm run test -w @pathweave/web",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "verify": "npm test && npm run typecheck && npm run build"
+  },
+  "engines": { "node": ">=22" }
+}
