@@ -11,6 +11,14 @@ export interface RankingRow {
   total_stars?: number; total_steps?: number; total_duration_ms?: number; completed_days?: number;
 }
 
+export function requestHeaders(init: RequestInit | undefined, token: string | null) {
+  const headers = new Headers();
+  if (init?.body !== undefined && init.body !== null) headers.set("content-type", "application/json");
+  if (token) headers.set("authorization", `Bearer ${token}`);
+  new Headers(init?.headers).forEach((value, key) => headers.set(key, value));
+  return headers;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = localStorage.getItem(TOKEN_KEY);
   const controller = new AbortController();
@@ -19,7 +27,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     response = await fetch(`${API_URL}${path}`, {
       ...init, signal: init?.signal ?? controller.signal,
-      headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}), ...init?.headers },
+      headers: requestHeaders(init, token),
     });
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") throw new Error("网络响应超时，请重试");
