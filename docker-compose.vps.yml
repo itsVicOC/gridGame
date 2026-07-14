@@ -1,0 +1,123 @@
+name: gridgame
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pathweave
+      POSTGRES_USER: pathweave
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: --data-checksums
+    command:
+      - postgres
+      - -c
+      - shared_buffers=96MB
+      - -c
+      - work_mem=2MB
+      - -c
+      - maintenance_work_mem=32MB
+      - -c
+      - max_connections=30
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pathweave -d pathweave"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+    mem_limit: 384m
+    pids_limit: 128
+    security_opt: ["no-new-privileges:true"]
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: "3" }
+
+  migrate:
+    image: ${API_IMAGE:-ghcr.io/itsvicoc/gridgame/api:main}
+    environment: &api-environment
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3001
+      DATABASE_URL: postgres://pathweave:${POSTGRES_PASSWORD}@postgres:5432/pathweave
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      ALLOWED_ORIGIN: ${ALLOWED_ORIGIN:?set ALLOWED_ORIGIN}
+    depends_on:
+      postgres: { condition: service_healthy }
+    command: ["node", "apps/api/dist/migrate.js"]
+    networks: [backend]
+    read_only: true
+    tmpfs: ["/tmp:size=16m,mode=1777"]
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 160m
+    pids_limit: 64
+
+  api:
+    image: ${API_IMAGE:-ghcr.io/itsvicoc/gridgame/api:main}
+    restart: unless-stopped
+    init: true
+    environment: *api-environment
+    depends_on:
+      postgres: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    networks:
+      backend:
+      reverse_proxy:
+        aliases: [gridgame-api]
+    read_only: true
+    tmpfs: ["/tmp:size=16m,mode=1777"]
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 4s
+      retries: 5
+      start_period: 15s
+    mem_limit: 192m
+    pids_limit: 96
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: "3" }
+
+  backup:
+    image: postgres:17-alpine
+    profiles: [tools]
+    environment:
+      PGHOST: postgres
+      PGDATABASE: pathweave
+      PGUSER: pathweave
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    depends_on:
+      postgres: { condition: service_healthy }
+    command:
+      - /bin/sh
+      - -c
+      - >-
+        pg_dump --format=custom --no-owner
+        --file=/backups/pathweave-$$(date -u +%Y%m%dT%H%M%SZ).dump
+        && find /backups -type f -name 'pathweave-*.dump' -mtime +14 -delete
+    volumes:
+      - ./backups:/backups
+    networks: [backend]
+    read_only: true
+    tmpfs: ["/tmp:size=16m,mode=1777"]
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 128m
+    pids_limit: 48
+
+networks:
+  backend:
+    name: gridgame_backend
+    internal: true
+  reverse_proxy:
+    external: true
+    name: ${PROXY_NETWORK:-personal-feed}
+
+volumes:
+  postgres_data:
+    name: gridgame_postgres_data

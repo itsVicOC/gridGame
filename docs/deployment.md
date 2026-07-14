@@ -38,6 +38,21 @@ docker compose ps
 docker compose logs -f migrate api caddy
 ```
 
+如果 VPS 已有共享反向代理，使用不占用宿主机端口的隔离配置：
+
+```bash
+docker compose -f docker-compose.vps.yml pull
+docker compose -f docker-compose.vps.yml up -d
+```
+
+`docker-compose.vps.yml` 仅将 API 加入现有 `personal-feed` 网络，PostgreSQL 保持在独立 internal 网络中。共享代理应将 API 域名反向代理到 `gridgame-api:3001`。
+
+执行一次隔离备份：
+
+```bash
+docker compose -f docker-compose.vps.yml --profile tools run --rm backup
+```
+
 启动顺序为 PostgreSQL、迁移、API 健康检查、Caddy。验证：
 
 ```bash
